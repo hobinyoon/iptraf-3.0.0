@@ -7,7 +7,7 @@
  */
 
 #include <asm/types.h>
-#include <linux/if_tr.h>
+#include <netinet/if_tr.h>
 #include <netinet/in.h>
 
 unsigned int get_tr_ip_offset(unsigned char *pkt)

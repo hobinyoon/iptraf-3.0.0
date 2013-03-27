@@ -18,7 +18,7 @@ details.
 
 #include <asm/types.h>
 #include <linux/if_ether.h>
-#include <linux/if_tr.h>
+#include <netinet/if_tr.h>
 #include <linux/if_fddi.h>
 #include <winops.h>
 #include "arphdr.h"

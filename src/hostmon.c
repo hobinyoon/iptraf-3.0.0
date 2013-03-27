@@ -31,7 +31,7 @@ details.
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_fddi.h>
-#include <linux/if_tr.h>
+#include <netinet/if_tr.h>
 #include <net/if_arp.h>
 #include <stdlib.h>
 #include <time.h>
