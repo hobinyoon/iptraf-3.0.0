@@ -22,7 +22,6 @@ details.
 #include "tcptable.h"
 #include "deskman.h"
 #include "attrs.h"
-#include "log.h"
 #include "revname.h"
 #include "rvnamed.h"
 
@@ -498,7 +497,7 @@ struct tcptableent *in_table(struct tcptable *table, unsigned long saddr,
     struct tcp_hashentry *hashptr;
     unsigned int hp;
 
-    int hastimeouts = 0;
+    // int hastimeouts = 0;
 
     time_t now;
     time_t timeout;
@@ -539,8 +538,8 @@ struct tcptableent *in_table(struct tcptable *table, unsigned long saddr,
             hashptr->tcpnode->timedout = 1;
             hashptr->tcpnode->oth_connection->timedout = 1;
             addtoclosedlist(table, hashptr->tcpnode, nomem);
-            if (!(*nomem))
-                hastimeouts = 1;
+			//if (!(*nomem))
+			//	hastimeouts = 1;
 
             if (logging)
                 write_timeout_log(logging, logfile, hashptr->tcpnode,
@@ -561,6 +560,114 @@ struct tcptableent *in_table(struct tcptable *table, unsigned long saddr,
     } else {
         return NULL;
     }
+}
+
+
+// Bytes transferred per second
+typedef struct _Btps
+{
+	// 123.123.123.123:12345 123.123.123.123:12345
+	// 12345678901234567890123456789012345678901234567890
+	//          1         2         3         4         5
+	char fromto[50];
+	unsigned int bytes;
+	unsigned long bytes_total;
+	struct _Btps* next;
+} Btps;
+
+
+Btps* BTPS_HEAD = NULL;
+Btps* BTPS_TAIL = NULL;
+
+// implement with linked list. won't be too slow. number of unique items are
+// not that many, probably 10 or less.
+void tcp_map_insert(const char* fromto, unsigned int bcount, unsigned long bcount_total)
+{
+	// search for the existing item. if found, update it. it not, allocate a
+	// new one and append it.
+	Btps* i = BTPS_HEAD;
+	for ( ; i != NULL; i = i->next)
+	{
+		if (strcmp(i->fromto, fromto) == 0)
+			break;
+	}
+
+	// found a match. bytes is incremented, total bytes is overwritten.
+	if (i != NULL)
+	{
+		i->bytes += bcount;
+		i->bytes_total = bcount_total;
+	}
+	else
+	{
+		Btps* btps = (Btps*) malloc(sizeof(Btps));
+		strcpy(btps->fromto, fromto);
+		btps->bytes = bcount;
+		btps->bytes_total = bcount_total;
+		btps->next = NULL;
+
+		// when tail is null, head should be null too.
+		if (BTPS_TAIL == NULL)
+		{
+			BTPS_HEAD = btps;
+			BTPS_TAIL = btps;
+		}
+		else
+		{
+			BTPS_TAIL->next = btps;
+			BTPS_TAIL = btps;
+		}
+	}
+}
+
+
+void tcp_map_flush(int logging, FILE* logfile, const time_t last_tm)
+{
+	struct tm* tm_ = localtime(&last_tm);
+
+	Btps* i;
+	for (i = BTPS_HEAD; i != NULL; )
+	{
+		fprintf(logfile, "NS: %02d-%02d%02d%02d; %s %u %lu\n",
+				tm_->tm_mday, tm_->tm_hour, tm_->tm_min, tm_->tm_sec,
+				i->fromto, i->bytes, i->bytes_total);
+		Btps* j = i;
+		i = i->next;
+		free(j);
+	}
+
+	BTPS_HEAD = BTPS_TAIL = NULL;
+
+	fflush(logfile);
+}
+
+
+void log_bcount_every_sec(
+		const char* s_dn, const char* s_sn,
+		const char* d_dn, const char* d_sn,
+		unsigned int bcount,
+		unsigned long te_bcount,
+		int logging, FILE* logfile)
+{
+    char fromto[50];
+	snprintf(fromto, sizeof(fromto),
+			"%s:%s %s:%s",
+			s_dn, s_sn,
+			d_dn, d_sn);
+
+	static time_t last_tm = 0;
+	time_t cur_tm = time((time_t *) NULL);
+
+	if (cur_tm != last_tm)
+	{
+		// flush all messages
+		tcp_map_flush(logging, logfile, last_tm);
+
+		last_tm = cur_tm;
+	}
+
+	// add messages to the message map
+	tcp_map_insert(fromto, bcount, te_bcount);
 }
 
 
@@ -595,12 +702,12 @@ void updateentry(struct tcptable *table, struct tcptableent *tableentry,
     tableentry->psize = packetlength;
     tableentry->spanbr += bcount;
 
-	snprintf(msgstring, MSGSTRING_MAX,
-			"[%s %d] %s %s %s %s %d %d", __FILE__, __LINE__,
-			tableentry->s_fqdn, tableentry->s_sname,
-			tableentry->d_fqdn, tableentry->d_sname,
-			bcount, tableentry->bcount);
-	writelog(logging, logfile, msgstring);
+	if (logging)
+		log_bcount_every_sec(
+				tableentry->s_fqdn, tableentry->s_sname,
+				tableentry->d_fqdn, tableentry->d_sname,
+				bcount, tableentry->bcount,
+				logging, logfile);
 
     if (opts->mac) {
         bzero(newmacaddr, 15);
