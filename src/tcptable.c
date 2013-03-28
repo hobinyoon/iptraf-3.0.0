@@ -595,6 +595,13 @@ void updateentry(struct tcptable *table, struct tcptableent *tableentry,
     tableentry->psize = packetlength;
     tableentry->spanbr += bcount;
 
+	snprintf(msgstring, MSGSTRING_MAX,
+			"[%s %d] %s %s %s %s %d %d", __FILE__, __LINE__,
+			tableentry->s_fqdn, tableentry->s_sname,
+			tableentry->d_fqdn, tableentry->d_sname,
+			bcount, tableentry->bcount);
+	writelog(logging, logfile, msgstring);
+
     if (opts->mac) {
         bzero(newmacaddr, 15);
 
