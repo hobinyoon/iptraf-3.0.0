@@ -629,7 +629,7 @@ void tcp_map_flush(int logging, FILE* logfile, const time_t last_tm)
 	for (i = BTPS_HEAD; i != NULL; )
 	{
 		fprintf(logfile, "NS: %02d%02d%02d-%02d%02d%02d; %s %u %lu\n",
-				tm_->tm_year, tm_->tm_mon, tm_->tm_mday,
+				tm_->tm_year + 1900 - 2000, tm_->tm_mon + 1, tm_->tm_mday,
 				tm_->tm_hour, tm_->tm_min, tm_->tm_sec,
 				i->fromto, i->bytes, i->bytes_total);
 		Btps* j = i;
